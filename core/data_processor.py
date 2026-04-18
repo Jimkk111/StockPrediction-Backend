@@ -48,13 +48,12 @@ class DataLoader():
     def generate_train_batch(self, seq_len, batch_size, normalise):
         '''Yield a generator of training data from filename on given list of cols split for train/test'''
         i = 0
-        while i < (self.len_train - seq_len):
+        while True:  # Infinite loop to generate data continuously
             x_batch = []
             y_batch = []
             for b in range(batch_size):
                 if i >= (self.len_train - seq_len):
-                    # stop-condition for a smaller final batch if data doesn't divide evenly
-                    yield np.array(x_batch), np.array(y_batch)
+                    # Reset to beginning when reaching the end
                     i = 0
                 x, y = self._next_window(i, seq_len, normalise)
                 x_batch.append(x)

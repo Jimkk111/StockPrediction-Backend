@@ -1,6 +1,6 @@
 {
 	"data": {
-		"filename": "sp500.csv",
+		"filename": "nasdaq.csv",
 		"columns": [
 			"Close",
 			"Volume"
@@ -10,7 +10,7 @@
 		"normalise": true
 	},
 	"training": {
-		"epochs": 2,
+		"epochs": 100,
 		"batch_size": 32
 	},
 	"model": {

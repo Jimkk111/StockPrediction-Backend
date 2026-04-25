@@ -15,3 +15,6 @@ class User(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     backtest_results = relationship("BacktestResult", back_populates="user", cascade="all, delete-orphan")
+    training_jobs = relationship("TrainingJob", back_populates="user", cascade="all, delete-orphan")
+    datasets = relationship("Dataset", back_populates="user", cascade="all, delete-orphan")
+    prediction_results = relationship("PredictionResult", back_populates="user", cascade="all, delete-orphan")

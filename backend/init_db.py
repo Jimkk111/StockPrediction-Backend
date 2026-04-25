@@ -39,6 +39,9 @@ def init_database():
     from app.database import engine, Base
     from app.models.user import User
     from app.models.backtest import BacktestResult, PortfolioSnapshot, TradeRecord
+    from app.models.training import TrainingJob, TrainingEpochLog
+    from app.models.dataset import Dataset
+    from app.models.prediction import PredictionResult, PredictionPoint
     from app.utils.security import get_password_hash
     from sqlalchemy.orm import sessionmaker
 

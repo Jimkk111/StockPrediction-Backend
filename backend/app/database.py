@@ -15,7 +15,16 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
-from app.models import User, BacktestResult, PortfolioSnapshot, TradeRecord
+
+def ensure_models_registered():
+    """确保所有模型已注册到 Base.metadata（用于 create_all）。
+    放在函数内避免循环导入：database.py <-> models/__init__.py
+    """
+    from app.models import (  # noqa: F401
+        User, BacktestResult, PortfolioSnapshot, TradeRecord,
+        TrainingJob, TrainingEpochLog, Dataset,
+        PredictionResult, PredictionPoint,
+    )
 
 
 def get_db():

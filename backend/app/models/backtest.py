@@ -12,6 +12,11 @@ class BacktestResult(Base):
     strategy_name = Column(String(200), nullable=False)
     strategy_type = Column(String(50), nullable=False)
 
+    # 数据与模型信息
+    data_filename = Column(String(200), nullable=True)                          # 使用的股票数据文件
+    training_job_id = Column(Integer, ForeignKey("training_jobs.id", ondelete="SET NULL"), nullable=True, index=True)  # 关联的训练任务
+    saved_model_path = Column(String(500), nullable=True)                       # 实际使用的模型文件路径
+
     total_return = Column(Float, nullable=False)
     annual_return = Column(Float, nullable=False)
     max_drawdown = Column(Float, nullable=False)
@@ -28,6 +33,7 @@ class BacktestResult(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="backtest_results")
+    training_job = relationship("TrainingJob", back_populates="backtest_results")
     portfolio_snapshots = relationship("PortfolioSnapshot", back_populates="backtest_result", cascade="all, delete-orphan")
     trade_records = relationship("TradeRecord", back_populates="backtest_result", cascade="all, delete-orphan")
 

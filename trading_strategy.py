@@ -21,6 +21,7 @@ def load_all_data():
     return dataframe
 
 
+# 计算RSI指标(相对强弱指数)
 def compute_rsi(price_series, period=14):
     delta = price_series.diff()
     gain = delta.where(delta > 0, 0.0)
@@ -32,7 +33,7 @@ def compute_rsi(price_series, period=14):
     rsi = rsi.fillna(50)
     return rsi
 
-
+# 计算ATR指标(平均真实波幅)
 def compute_atr(high, low, close, period=14):
     tr = pd.concat([
         high - low,
@@ -138,6 +139,96 @@ def load_lstm_full_predictions(dataframe):
     return None
 
 
+def load_lstm_predictions_from_model(dataframe, model_path, seq_len):
+    """
+    从指定模型路径加载LSTM模型并生成全量预测。
+
+    与 load_lstm_full_predictions 不同，此函数：
+    - 接受明确的模型文件路径，而非自动搜索 saved_models 目录
+    - 接受明确的 seq_len，而非从 config.json 读取
+    - 用于回测时选择特定训练任务的模型
+    """
+    print(f"\n加载指定LSTM模型并生成全量预测: {model_path}")
+
+    if not os.path.isfile(model_path):
+        print(f"  模型文件不存在: {model_path}")
+        return None
+
+    temp_dir = tempfile.mkdtemp(prefix='lstm_model_')
+
+    try:
+        # 复制到临时目录避免文件锁问题
+        temp_model_path = os.path.join(temp_dir, 'model.h5')
+        shutil.copy2(model_path, temp_model_path)
+
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from core.model import Model
+
+        model = Model()
+        model.load_model(temp_model_path)
+
+        input_shape = model.model.input_shape
+        n_features = input_shape[2] if len(input_shape) == 3 else 2
+        print(f"  模型输入形状: {input_shape}, 序列长度: {seq_len}")
+
+        # 根据模型输入维度选择特征列
+        all_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+        available_cols = [c for c in all_cols if c in dataframe.columns]
+        use_cols = available_cols[:n_features]
+        print(f"  使用特征列: {use_cols}")
+
+        data_raw = dataframe[use_cols].values.astype(float)
+
+        # 滑动窗口标准化
+        normalised_data = []
+        for i in range(len(data_raw) - seq_len + 1):
+            window = data_raw[i:i + seq_len]
+            norm_window = np.zeros_like(window)
+            for col in range(window.shape[1]):
+                base = window[0, col]
+                if base != 0:
+                    norm_window[:, col] = (window[:, col] / base) - 1
+                else:
+                    norm_window[:, col] = 0
+            normalised_data.append(norm_window)
+        normalised_data = np.array(normalised_data)
+
+        x_all = normalised_data[:, :-1, :]
+
+        print(f"  全量数据: {x_all.shape}, 生成预测中...")
+        predictions = model.predict_point_by_point(x_all)
+        print(f"  生成 {len(predictions)} 个预测点")
+
+        # 生成LSTM信号
+        pred_series = pd.Series(predictions)
+        smooth_fast = pred_series.ewm(span=3, adjust=False).mean()
+        smooth_slow = pred_series.ewm(span=10, adjust=False).mean()
+
+        lstm_signal = np.zeros(len(dataframe))
+        for i in range(len(predictions)):
+            idx = i + seq_len - 1
+            if idx < len(lstm_signal):
+                if smooth_fast.iloc[i] > smooth_slow.iloc[i]:
+                    lstm_signal[idx] = 1
+                else:
+                    lstm_signal[idx] = -1
+
+        return {
+            'predictions': predictions,
+            'seq_len': seq_len,
+            'lstm_signal': lstm_signal,
+        }
+
+    except Exception as e:
+        print(f"  加载模型失败: {str(e)[:200]}")
+        return None
+    finally:
+        try:
+            shutil.rmtree(temp_dir)
+        except:
+            pass
+
+# 趋势跟踪策略
 def generate_signals_trend_rider(prices, high, low, close, lstm_data=None,
                                    trend_ema=50, confirm_ema=20,
                                    bull_trail=0.15, bear_trail=0.03,
@@ -218,7 +309,7 @@ def generate_signals_trend_rider(prices, high, low, close, lstm_data=None,
     signals['position'] = signals['signal'].diff().fillna(0)
     return signals
 
-
+# EMA交叉策略
 def generate_signals_ema_cross_wide(prices, high, low, close, lstm_data=None,
                                       fast_ema=8, slow_ema=21,
                                       bull_trail=0.15, bear_trail=0.03,
@@ -297,7 +388,7 @@ def generate_signals_ema_cross_wide(prices, high, low, close, lstm_data=None,
     signals['position'] = signals['signal'].diff().fillna(0)
     return signals
 
-
+# MACD策略
 def generate_signals_macd_wide(prices, high, low, close, lstm_data=None,
                                  trend_ema=50, bull_trail=0.15, bear_trail=0.03,
                                  stop_loss_pct=0.12, rsi_period=14):

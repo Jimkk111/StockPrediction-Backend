@@ -7,7 +7,6 @@ load_dotenv(env_path)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.auth import router as auth_router
 from app.api.backtest import router as backtest_router
 from app.api.training import router as training_router
 from app.api.market import router as market_router
@@ -17,7 +16,7 @@ from app.services.training import TrainingEventBus
 
 app = FastAPI(
     title="LSTM Stock Prediction Backend",
-    description="LSTM股票预测系统后端API - 包含用户鉴权、交易策略回测与模型训练功能",
+    description="LSTM股票预测系统后端API - 包含交易策略回测与模型训练功能",
     version="1.0.0",
 )
 
@@ -29,7 +28,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router, prefix="/api")
 app.include_router(backtest_router, prefix="/api")
 app.include_router(training_router, prefix="/api")
 app.include_router(market_router, prefix="/api")

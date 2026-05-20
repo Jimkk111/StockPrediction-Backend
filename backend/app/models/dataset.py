@@ -9,7 +9,6 @@ class Dataset(Base):
     __tablename__ = "datasets"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # 基本信息
     name = Column(String(200), nullable=False)
@@ -38,5 +37,4 @@ class Dataset(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    user = relationship("User", back_populates="datasets")
     training_jobs = relationship("TrainingJob", back_populates="dataset")

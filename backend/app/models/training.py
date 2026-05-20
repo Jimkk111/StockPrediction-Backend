@@ -9,7 +9,6 @@ class TrainingJob(Base):
     __tablename__ = "training_jobs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # 数据配置
     dataset_id = Column(Integer, ForeignKey("datasets.id", ondelete="SET NULL"), nullable=True, index=True)  # 关联的数据集
@@ -44,7 +43,6 @@ class TrainingJob(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    user = relationship("User", back_populates="training_jobs")
     dataset = relationship("Dataset", back_populates="training_jobs")
     epoch_logs = relationship("TrainingEpochLog", back_populates="training_job", cascade="all, delete-orphan")
     backtest_results = relationship("BacktestResult", back_populates="training_job")

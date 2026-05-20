@@ -24,7 +24,6 @@ from fastapi import HTTPException, status
 from app.models.prediction import PredictionResult, PredictionPoint
 from app.models.training import TrainingJob
 from app.models.dataset import Dataset
-from app.models.user import User
 from app.schemas.prediction import (
     PredictionRunRequest, PredictionDetail, PredictionSummary,
     PredictionListResponse, PredictionPointResponse, PredictionMatchRequest,
@@ -73,7 +72,7 @@ DEFAULT_PARAMS = {
 
 # ==================== 数据源解析 ====================
 
-def _resolve_data_source(request: PredictionRunRequest, db: Session, user: User) -> Tuple[str, str, Optional[list]]:
+def _resolve_data_source(request: PredictionRunRequest, db: Session) -> Tuple[str, str, Optional[list]]:
     """
     解析数据源：dataset_id > data_filename > config.json默认
     
@@ -83,7 +82,6 @@ def _resolve_data_source(request: PredictionRunRequest, db: Session, user: User)
     if request.dataset_id:
         dataset = db.query(Dataset).filter(
             Dataset.id == request.dataset_id,
-            Dataset.user_id == user.id,
         ).first()
         if not dataset:
             raise HTTPException(
@@ -303,7 +301,7 @@ def _predict_next_day(dataframe: pd.DataFrame, model_path: str, seq_len: int,
 
 # ==================== 核心业务逻辑 ====================
 
-def run_and_save_prediction(db: Session, user: User, request: PredictionRunRequest) -> PredictionDetail:
+def run_and_save_prediction(db: Session, request: PredictionRunRequest) -> PredictionDetail:
     """执行预测并保存结果"""
 
     strategy_type = request.strategy_type
@@ -316,7 +314,6 @@ def run_and_save_prediction(db: Session, user: User, request: PredictionRunReque
     # 1. 查找训练任务
     job = db.query(TrainingJob).filter(
         TrainingJob.id == request.training_job_id,
-        TrainingJob.user_id == user.id,
     ).first()
     if not job:
         raise HTTPException(
@@ -335,7 +332,7 @@ def run_and_save_prediction(db: Session, user: User, request: PredictionRunReque
         )
 
     # 2. 解析数据源
-    data_filepath, data_label, dataset_columns = _resolve_data_source(request, db, user)
+    data_filepath, data_label, dataset_columns = _resolve_data_source(request, db)
 
     # 3. 加载数据
     original_cwd = os.getcwd()
@@ -459,7 +456,6 @@ def run_and_save_prediction(db: Session, user: User, request: PredictionRunReque
 
     # 10. 保存预测结果
     prediction_record = PredictionResult(
-        user_id=user.id,
         stock_code=stock_code,
         stock_name=stock_name,
         data_source=data_label,
@@ -512,11 +508,10 @@ def run_and_save_prediction(db: Session, user: User, request: PredictionRunReque
 
 # ==================== 匹配实际数据 ====================
 
-def match_actual_data(db: Session, user: User, prediction_id: int, request: PredictionMatchRequest) -> PredictionDetail:
+def match_actual_data(db: Session, prediction_id: int, request: PredictionMatchRequest) -> PredictionDetail:
     """用实际次日收盘价更新预测记录"""
     record = db.query(PredictionResult).filter(
         PredictionResult.id == prediction_id,
-        PredictionResult.user_id == user.id,
     ).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预测记录不存在")
@@ -535,9 +530,9 @@ def match_actual_data(db: Session, user: User, prediction_id: int, request: Pred
 
 # ==================== 列表/详情/删除 ====================
 
-def list_predictions(db: Session, user: User, skip: int = 0, limit: int = 20) -> PredictionListResponse:
-    """获取用户的预测记录列表"""
-    query = db.query(PredictionResult).filter(PredictionResult.user_id == user.id)
+def list_predictions(db: Session, skip: int = 0, limit: int = 20) -> PredictionListResponse:
+    """获取预测记录列表"""
+    query = db.query(PredictionResult)
     total = query.count()
     items = query.order_by(PredictionResult.created_at.desc()).offset(skip).limit(limit).all()
     return PredictionListResponse(
@@ -546,22 +541,20 @@ def list_predictions(db: Session, user: User, skip: int = 0, limit: int = 20) ->
     )
 
 
-def get_prediction_detail(db: Session, user: User, prediction_id: int) -> PredictionDetail:
+def get_prediction_detail(db: Session, prediction_id: int) -> PredictionDetail:
     """获取预测详情"""
     record = db.query(PredictionResult).filter(
         PredictionResult.id == prediction_id,
-        PredictionResult.user_id == user.id,
     ).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预测记录不存在")
     return _build_detail(record)
 
 
-def delete_prediction(db: Session, user: User, prediction_id: int) -> None:
+def delete_prediction(db: Session, prediction_id: int) -> None:
     """删除预测记录"""
     record = db.query(PredictionResult).filter(
         PredictionResult.id == prediction_id,
-        PredictionResult.user_id == user.id,
     ).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预测记录不存在")

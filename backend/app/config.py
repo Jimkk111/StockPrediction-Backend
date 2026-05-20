@@ -9,10 +9,6 @@ class Settings(BaseSettings):
     MYSQL_PASSWORD: str = "your_password_here"
     MYSQL_DATABASE: str = "lstm_stock"
 
-    JWT_SECRET_KEY: str = "change_this_to_a_secure_random_string"
-    JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
-
     @property
     def DATABASE_URL(self) -> str:
         return (

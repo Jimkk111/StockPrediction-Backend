@@ -1,7 +1,5 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import HTTPException
-from app.models.user import User
-from app.utils.security import get_current_user
 from app.schemas.market import (
     StockSearchResponse, FeatureListResponse, KlineResponse,
 )
@@ -14,7 +12,6 @@ router = APIRouter(prefix="/market", tags=["行情数据"])
 def search(
     keyword: str = Query(..., min_length=1, description="搜索关键词（代码或名称）"),
     limit: int = Query(default=20, ge=1, le=50),
-    current_user: User = Depends(get_current_user),
 ):
     """模糊搜索 A 股代码或名称，返回匹配的股票列表。"""
     try:
@@ -26,7 +23,6 @@ def search(
 @router.get("/features", response_model=FeatureListResponse, summary="内置特征列表")
 def features(
     type: str = Query(default="stock", description="数据类型: stock / fund"),
-    current_user: User = Depends(get_current_user),
 ):
     """
     获取可选的特征列列表。
@@ -43,7 +39,6 @@ def kline(
     end_date: str = Query(default="", description="结束日期 YYYYMMDD"),
     adjust: str = Query(default="qfq", description="复权: qfq / hfq / 空字符串"),
     columns: str = Query(default="", description="需要的列（逗号分隔），如 Close,Volume,Turnover"),
-    current_user: User = Depends(get_current_user),
 ):
     """
     预览股票行情数据，不落盘。

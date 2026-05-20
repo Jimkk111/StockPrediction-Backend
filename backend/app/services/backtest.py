@@ -10,7 +10,6 @@ from fastapi import HTTPException, status
 from app.models.backtest import BacktestResult, PortfolioSnapshot, TradeRecord
 from app.models.training import TrainingJob
 from app.models.dataset import Dataset
-from app.models.user import User
 from app.schemas.backtest import (
     BacktestSummary, BacktestDetail, BacktestListResponse,
     PortfolioSnapshotResponse, TradeRecordResponse, BacktestRunRequest,
@@ -61,7 +60,7 @@ DEFAULT_PARAMS = {
 DEFAULT_DATA_FILENAME = "nasdaq.csv"
 
 
-def _resolve_data_source(request: BacktestRunRequest, db: Session, user: User) -> tuple:
+def _resolve_data_source(request: BacktestRunRequest, db: Session) -> tuple:
     """
     解析数据源：dataset_id > data_filename > config.json默认
     
@@ -74,7 +73,6 @@ def _resolve_data_source(request: BacktestRunRequest, db: Session, user: User) -
     if request.dataset_id:
         dataset = db.query(Dataset).filter(
             Dataset.id == request.dataset_id,
-            Dataset.user_id == user.id,
         ).first()
         if not dataset:
             raise HTTPException(
@@ -116,7 +114,7 @@ def _resolve_data_source(request: BacktestRunRequest, db: Session, user: User) -
     return data_filepath, data_filename, None
 
 
-def _load_lstm_data(dataframe, request: BacktestRunRequest, db: Session, user: User):
+def _load_lstm_data(dataframe, request: BacktestRunRequest, db: Session):
     """
     加载 LSTM 预测数据：
     1. 如果指定了 training_job_id → 用该任务的模型
@@ -126,7 +124,6 @@ def _load_lstm_data(dataframe, request: BacktestRunRequest, db: Session, user: U
         # 查找指定的训练任务
         job = db.query(TrainingJob).filter(
             TrainingJob.id == request.training_job_id,
-            TrainingJob.user_id == user.id,
         ).first()
         if not job:
             raise HTTPException(
@@ -167,7 +164,7 @@ def _load_lstm_data(dataframe, request: BacktestRunRequest, db: Session, user: U
         return lstm_data, None, None
 
 
-def run_and_save_backtest(db: Session, user: User, request: BacktestRunRequest) -> BacktestDetail:
+def run_and_save_backtest(db: Session, request: BacktestRunRequest) -> BacktestDetail:
     """执行回测并保存结果"""
     strategy_type = request.strategy_type
     if strategy_type not in STRATEGY_MAP:
@@ -179,7 +176,7 @@ def run_and_save_backtest(db: Session, user: User, request: BacktestRunRequest) 
 
     # 解析数据源（支持 dataset_id / data_filename / config.json）
     try:
-        data_filepath, data_label, dataset_columns = _resolve_data_source(request, db, user)
+        data_filepath, data_label, dataset_columns = _resolve_data_source(request, db)
     except HTTPException:
         raise
 
@@ -200,7 +197,7 @@ def run_and_save_backtest(db: Session, user: User, request: BacktestRunRequest) 
 
     # 加载 LSTM 预测数据（核心改动：支持模型选择）
     try:
-        lstm_data, used_model_path, used_job_id = _load_lstm_data(dataframe, request, db, user)
+        lstm_data, used_model_path, used_job_id = _load_lstm_data(dataframe, request, db)
     except HTTPException:
         raise
     except Exception as e:
@@ -231,7 +228,6 @@ def run_and_save_backtest(db: Session, user: User, request: BacktestRunRequest) 
         request.data_filename or data_label
     )
     backtest_record = BacktestResult(
-        user_id=user.id,
         strategy_name=strategy_name,
         strategy_type=strategy_type,
         data_filename=record_data_filename,
@@ -293,8 +289,8 @@ def run_and_save_backtest(db: Session, user: User, request: BacktestRunRequest) 
     return _build_detail(backtest_record)
 
 
-def list_backtests(db: Session, user: User, skip: int = 0, limit: int = 20) -> BacktestListResponse:
-    query = db.query(BacktestResult).filter(BacktestResult.user_id == user.id)
+def list_backtests(db: Session, skip: int = 0, limit: int = 20) -> BacktestListResponse:
+    query = db.query(BacktestResult)
     total = query.count()
     items = query.order_by(BacktestResult.created_at.desc()).offset(skip).limit(limit).all()
     return BacktestListResponse(
@@ -303,20 +299,18 @@ def list_backtests(db: Session, user: User, skip: int = 0, limit: int = 20) -> B
     )
 
 
-def get_backtest_detail(db: Session, user: User, backtest_id: int) -> BacktestDetail:
+def get_backtest_detail(db: Session, backtest_id: int) -> BacktestDetail:
     record = db.query(BacktestResult).filter(
         BacktestResult.id == backtest_id,
-        BacktestResult.user_id == user.id,
     ).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="回测记录不存在")
     return _build_detail(record)
 
 
-def delete_backtest(db: Session, user: User, backtest_id: int) -> None:
+def delete_backtest(db: Session, backtest_id: int) -> None:
     record = db.query(BacktestResult).filter(
         BacktestResult.id == backtest_id,
-        BacktestResult.user_id == user.id,
     ).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="回测记录不存在")

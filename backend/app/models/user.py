@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, String, DateTime
-from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -13,8 +12,3 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    backtest_results = relationship("BacktestResult", back_populates="user", cascade="all, delete-orphan")
-    training_jobs = relationship("TrainingJob", back_populates="user", cascade="all, delete-orphan")
-    datasets = relationship("Dataset", back_populates="user", cascade="all, delete-orphan")
-    prediction_results = relationship("PredictionResult", back_populates="user", cascade="all, delete-orphan")

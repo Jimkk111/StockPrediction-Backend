@@ -8,7 +8,6 @@ class BacktestResult(Base):
     __tablename__ = "backtest_results"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     strategy_name = Column(String(200), nullable=False)
     strategy_type = Column(String(50), nullable=False)
 
@@ -32,7 +31,6 @@ class BacktestResult(Base):
 
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
-    user = relationship("User", back_populates="backtest_results")
     training_job = relationship("TrainingJob", back_populates="backtest_results")
     portfolio_snapshots = relationship("PortfolioSnapshot", back_populates="backtest_result", cascade="all, delete-orphan")
     trade_records = relationship("TradeRecord", back_populates="backtest_result", cascade="all, delete-orphan")

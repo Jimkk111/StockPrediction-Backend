@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.user import User
-from app.utils.security import get_current_user
 from app.schemas.prediction import (
     PredictionSummary, PredictionDetail, PredictionListResponse,
     PredictionRunRequest, PredictionMatchRequest,
@@ -19,7 +17,6 @@ router = APIRouter(prefix="/prediction", tags=["预测管理"])
 def run_prediction(
     request: PredictionRunRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """
     选择股票+模型+策略，生成次日预测结果。
@@ -30,7 +27,7 @@ def run_prediction(
     - **data_filename**: 可选，指定股票数据文件，不传则使用config.json配置
     - **stock_code / stock_name**: 可选，股票代码/名称，不传则从dataset推断
     """
-    return run_and_save_prediction(db, current_user, request)
+    return run_and_save_prediction(db, request)
 
 
 @router.get("/list", response_model=PredictionListResponse, summary="预测结果列表")
@@ -38,18 +35,16 @@ def get_prediction_list(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
-    return list_predictions(db, current_user, skip, limit)
+    return list_predictions(db, skip, limit)
 
 
 @router.get("/{prediction_id}", response_model=PredictionDetail, summary="预测结果详情")
 def get_prediction(
     prediction_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
-    return get_prediction_detail(db, current_user, prediction_id)
+    return get_prediction_detail(db, prediction_id)
 
 
 @router.put("/{prediction_id}/match", response_model=PredictionDetail, summary="匹配实际数据")
@@ -57,21 +52,19 @@ def match_prediction(
     prediction_id: int,
     request: PredictionMatchRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """
     用实际次日收盘价更新预测记录，计算预测是否准确。
     
     - **actual_price**: 次日实际收盘价
     """
-    return match_actual_data(db, current_user, prediction_id, request)
+    return match_actual_data(db, prediction_id, request)
 
 
 @router.delete("/{prediction_id}", summary="删除预测记录")
 def remove_prediction(
     prediction_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
-    delete_prediction(db, current_user, prediction_id)
+    delete_prediction(db, prediction_id)
     return {"message": "删除成功"}

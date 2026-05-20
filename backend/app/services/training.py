@@ -11,7 +11,6 @@ from fastapi import HTTPException, status
 
 from app.models.training import TrainingJob, TrainingEpochLog
 from app.models.dataset import Dataset
-from app.models.user import User
 from app.schemas.training import (
     TrainingRunRequest, TrainingRunResponse, TrainingDetail, TrainingSummary,
     TrainingListResponse, EpochLogResponse, LayerConfig,
@@ -113,7 +112,7 @@ def _build_configs(request: TrainingRunRequest, layers: List[dict]) -> dict:
 
 # ==================== 后台训练执行 ====================
 
-def _execute_training(job_id: int, user_id: int, configs: dict, save_dir: str):
+def _execute_training(job_id: int, configs: dict, save_dir: str):
     """
     在后台线程中执行的训练逻辑。
     通过 TrainingEventBus 推送实时进度，通过独立的数据库 session 操作记录。
@@ -291,7 +290,7 @@ def _execute_training(job_id: int, user_id: int, configs: dict, save_dir: str):
 
 # ==================== API 调用的入口函数 ====================
 
-def start_training(db: Session, user: User, request: TrainingRunRequest) -> TrainingRunResponse:
+def start_training(db: Session, request: TrainingRunRequest) -> TrainingRunResponse:
     """创建训练任务并启动后台线程，立即返回"""
 
     # 1. 解析数据源：dataset_id > data_filename
@@ -301,7 +300,6 @@ def start_training(db: Session, user: User, request: TrainingRunRequest) -> Trai
     if request.dataset_id:
         dataset = db.query(Dataset).filter(
             Dataset.id == request.dataset_id,
-            Dataset.user_id == user.id,
         ).first()
         if not dataset:
             raise HTTPException(
@@ -339,7 +337,6 @@ def start_training(db: Session, user: User, request: TrainingRunRequest) -> Trai
 
     # 4. 创建训练记录
     training_job = TrainingJob(
-        user_id=user.id,
         dataset_id=request.dataset_id if request.dataset_id else None,
         data_filename=actual_data_filename,
         data_columns=actual_data_columns,
@@ -363,7 +360,7 @@ def start_training(db: Session, user: User, request: TrainingRunRequest) -> Trai
     # 6. 启动后台线程
     thread = threading.Thread(
         target=_execute_training,
-        args=(training_job.id, user.id, configs, save_dir),
+        args=(training_job.id, configs, save_dir),
         daemon=True,
     )
     thread.start()
@@ -371,9 +368,9 @@ def start_training(db: Session, user: User, request: TrainingRunRequest) -> Trai
     return TrainingRunResponse(id=training_job.id, status="training")
 
 
-def list_trainings(db: Session, user: User, skip: int = 0, limit: int = 20) -> TrainingListResponse:
-    """获取用户的训练记录列表"""
-    query = db.query(TrainingJob).filter(TrainingJob.user_id == user.id)
+def list_trainings(db: Session, skip: int = 0, limit: int = 20) -> TrainingListResponse:
+    """获取训练记录列表"""
+    query = db.query(TrainingJob)
     total = query.count()
     items = query.order_by(TrainingJob.created_at.desc()).offset(skip).limit(limit).all()
     return TrainingListResponse(
@@ -382,22 +379,20 @@ def list_trainings(db: Session, user: User, skip: int = 0, limit: int = 20) -> T
     )
 
 
-def get_training_detail(db: Session, user: User, training_id: int) -> TrainingDetail:
+def get_training_detail(db: Session, training_id: int) -> TrainingDetail:
     """获取训练结果详情"""
     record = db.query(TrainingJob).filter(
         TrainingJob.id == training_id,
-        TrainingJob.user_id == user.id,
     ).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="训练记录不存在")
     return _build_detail(record)
 
 
-def delete_training(db: Session, user: User, training_id: int) -> None:
+def delete_training(db: Session, training_id: int) -> None:
     """删除训练记录（同时删除模型文件）"""
     record = db.query(TrainingJob).filter(
         TrainingJob.id == training_id,
-        TrainingJob.user_id == user.id,
     ).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="训练记录不存在")

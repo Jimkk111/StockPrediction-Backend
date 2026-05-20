@@ -9,7 +9,6 @@ class PredictionResult(Base):
     __tablename__ = "prediction_results"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # 股票信息
     stock_code = Column(String(20), nullable=True)          # 股票代码，如 "600519"
@@ -51,7 +50,6 @@ class PredictionResult(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    user = relationship("User", back_populates="prediction_results")
     training_job = relationship("TrainingJob", back_populates="prediction_results")
     points = relationship("PredictionPoint", back_populates="prediction_result", cascade="all, delete-orphan")
 

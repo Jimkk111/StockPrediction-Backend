@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.models.dataset import Dataset
-from app.models.user import User
 from app.schemas.dataset import (
     DatasetCreateRequest, DatasetSummary, DatasetDetail,
     DatasetListResponse, DatasetDownloadResponse,
@@ -28,10 +27,9 @@ PROJECT_DIR = os.path.dirname(BACKEND_DIR)
 
 # ==================== CRUD ====================
 
-def create_dataset(db: Session, user: User, request: DatasetCreateRequest) -> DatasetDetail:
+def create_dataset(db: Session, request: DatasetCreateRequest) -> DatasetDetail:
     """创建数据集（仅存配置，不下载）"""
     dataset = Dataset(
-        user_id=user.id,
         name=request.name,
         type=request.type,
         config=request.config.model_dump(),
@@ -43,9 +41,9 @@ def create_dataset(db: Session, user: User, request: DatasetCreateRequest) -> Da
     return _build_detail(dataset)
 
 
-def list_datasets(db: Session, user: User, skip: int = 0, limit: int = 20) -> DatasetListResponse:
+def list_datasets(db: Session, skip: int = 0, limit: int = 20) -> DatasetListResponse:
     """数据集列表"""
-    query = db.query(Dataset).filter(Dataset.user_id == user.id)
+    query = db.query(Dataset)
     total = query.count()
     items = query.order_by(Dataset.created_at.desc()).offset(skip).limit(limit).all()
     return DatasetListResponse(
@@ -54,22 +52,20 @@ def list_datasets(db: Session, user: User, skip: int = 0, limit: int = 20) -> Da
     )
 
 
-def get_dataset_detail(db: Session, user: User, dataset_id: int) -> DatasetDetail:
+def get_dataset_detail(db: Session, dataset_id: int) -> DatasetDetail:
     """数据集详情"""
     record = db.query(Dataset).filter(
         Dataset.id == dataset_id,
-        Dataset.user_id == user.id,
     ).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="数据集不存在")
     return _build_detail(record)
 
 
-def delete_dataset(db: Session, user: User, dataset_id: int) -> None:
+def delete_dataset(db: Session, dataset_id: int) -> None:
     """删除数据集（同时删 CSV 文件）"""
     record = db.query(Dataset).filter(
         Dataset.id == dataset_id,
-        Dataset.user_id == user.id,
     ).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="数据集不存在")
@@ -87,11 +83,10 @@ def delete_dataset(db: Session, user: User, dataset_id: int) -> None:
 
 # ==================== 下载 ====================
 
-def download_dataset(db: Session, user: User, dataset_id: int) -> DatasetDownloadResponse:
+def download_dataset(db: Session, dataset_id: int) -> DatasetDownloadResponse:
     """手动触发下载/刷新数据集"""
     record = db.query(Dataset).filter(
         Dataset.id == dataset_id,
-        Dataset.user_id == user.id,
     ).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="数据集不存在")
